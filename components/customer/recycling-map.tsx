@@ -1,11 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
 import { useLanguage } from "@/contexts/language-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MapPin, Navigation, Gift } from "lucide-react"
+
+// استيراد ملفات التنسيق الخاصة بالخريطة
+import "leaflet/dist/leaflet.css"
+
+// --- استيراد الخريطة بشكل ديناميكي لمنع أخطاء السيرفر في Next.js ---
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false })
 
 interface BinLocation {
   id: string
@@ -14,43 +24,65 @@ interface BinLocation {
   distance: string
   offer: string
   types: string[]
+  lat: number
+  lng: number
 }
 
+// بيانات تجريبية لمواقع في الجزائر العاصمة
 const mockBins: BinLocation[] = [
   {
     id: "1",
     name: "EcoMart Store",
-    address: "123 Green St, Algiers",
+    address: "وسط المدينة، الجزائر",
     distance: "0.5 km",
-    offer: "20% off on eco products",
+    offer: "خصم 20% على المنتجات البيئية",
     types: ["organic", "paper", "plastic"],
+    lat: 36.7538,
+    lng: 3.0588,
   },
   {
     id: "2",
     name: "Clean City Hub",
-    address: "45 Recycle Ave, Algiers",
+    address: "باب الزوار، الجزائر",
     distance: "1.2 km",
-    offer: "50 bonus points",
+    offer: "50 نقطة مكافأة",
     types: ["glass", "hazardous", "general"],
+    lat: 36.7118,
+    lng: 3.1739,
   },
   {
     id: "3",
     name: "GreenLife Center",
-    address: "78 Nature Blvd, Algiers",
+    address: "بن عكنون، الجزائر",
     distance: "2.0 km",
-    offer: "Free reusable bag",
+    offer: "حقيبة قابلة لإعادة الاستخدام مجاناً",
     types: ["organic", "plastic", "glass"],
+    lat: 36.7525,
+    lng: 3.0254,
   },
 ]
 
 export function RecyclingMap({ compact = false }: { compact?: boolean }) {
   const { t } = useLanguage()
   const [selectedBin, setSelectedBin] = useState<BinLocation | null>(null)
+  const [customIcon, setCustomIcon] = useState<any>(null)
+
+  // إعداد أيقونة الخريطة بعد تحميل الصفحة
+  useEffect(() => {
+    const L = require("leaflet")
+    const icon = L.icon({
+      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+    })
+    setCustomIcon(icon)
+  }, [])
 
   const displayBins = compact ? mockBins.slice(0, 2) : mockBins
 
   return (
-    <Card className="border-0 shadow-lg rounded-[20px]">
+    <Card className="border-0 shadow-lg rounded-[20px] overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2">
           <MapPin className="w-5 h-5 text-primary" />
@@ -59,59 +91,10 @@ export function RecyclingMap({ compact = false }: { compact?: boolean }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {!compact && (
-          <div className="relative h-48 bg-secondary rounded-xl overflow-hidden">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <MapPin className="w-12 h-12 mx-auto mb-2 text-primary" />
-                <p className="text-sm">{t("findBins")}</p>
-              </div>
-            </div>
-            {/* Map placeholder with animated pins */}
-            <div className="absolute top-1/4 left-1/3 w-4 h-4 bg-primary rounded-full animate-pulse" />
-            <div className="absolute top-1/2 right-1/4 w-4 h-4 bg-primary rounded-full animate-pulse [animation-delay:0.5s]" />
-            <div className="absolute bottom-1/3 left-1/2 w-4 h-4 bg-primary rounded-full animate-pulse [animation-delay:1s]" />
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {displayBins.map((bin) => (
-            <div
-              key={bin.id}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                selectedBin?.id === bin.id ? "border-primary bg-primary/5" : "border-transparent bg-secondary"
-              }`}
-              onClick={() => setSelectedBin(bin)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <h4 className="font-semibold">{bin.name}</h4>
-                  <p className="text-sm text-muted-foreground">{bin.address}</p>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="flex items-center gap-1">
-                      <Navigation className="w-3 h-3" />
-                      {bin.distance}
-                    </span>
-                    <span className="flex items-center gap-1 text-primary">
-                      <Gift className="w-3 h-3" />
-                      {bin.offer}
-                    </span>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline" className="rounded-lg bg-transparent">
-                  <Navigation className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex gap-2 mt-2">
-                {bin.types.map((type) => (
-                  <Badge key={type} variant="secondary" className="text-xs">
-                    {t(type)}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+          <div className="relative h-64 bg-secondary rounded-xl overflow-hidden border z-0">
+            {/* خريطة الجزائر الحقيقية */}
+            <MapContainer
+              center={[36.7538, 3.0588]}
+              zoom={11}
+              style={{ height: "100%", width: "100%" }}
+            ></MapContainer>
